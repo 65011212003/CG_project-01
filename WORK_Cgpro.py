@@ -1,18 +1,33 @@
 import tkinter as tk
-from tkinter import colorchooser, messagebox, filedialog, simpledialog
+from tkinter import ttk, colorchooser, messagebox, filedialog, simpledialog
 import math
 import json
 import os
+from PIL import Image, ImageTk
 
 class DrawingApp:
     def __init__(self, root):
         self.root = root
         self.root.title("2D Drawing Application")
         
+        # Apply theme
+        self.style = ttk.Style()
+        try:
+            self.style.theme_use('clam')  # Using a more modern built-in theme
+        except tk.TclError:
+            pass  # Fallback if theme not available
+        
+        # Configure style
+        self.style.configure('TButton', font=('Arial', 10))
+        self.style.configure('TLabel', font=('Arial', 10))
+        self.style.configure('TFrame', background='#f0f0f0')
+        self.style.configure('Tool.TButton', padding=5)
+        self.style.configure('Selected.TButton', background='#c0c0ff', relief='sunken')
+
         # Variables
         self.current_shape = "line"
-        self.current_color = "black"
-        self.fill_color = ""
+        self.current_color = "#000000"  # Black
+        self.fill_color = "#ffffff"     # White
         self.start_x = None
         self.start_y = None
         self.drawn_items = []
@@ -20,9 +35,16 @@ class DrawingApp:
         self.undo_stack = []
         self.redo_stack = []
         
-        # Create canvas
-        self.canvas = tk.Canvas(root, width=800, height=600, bg="white")
-        self.canvas.pack(expand=True, fill=tk.BOTH, padx=10, pady=10)
+        # Main frame
+        self.main_frame = ttk.Frame(root, padding="10")
+        self.main_frame.pack(expand=True, fill=tk.BOTH)
+        
+        # Create canvas with border
+        self.canvas_frame = ttk.Frame(self.main_frame, borderwidth=2, relief="groove")
+        self.canvas_frame.pack(expand=True, fill=tk.BOTH, padx=5, pady=5)
+        
+        self.canvas = tk.Canvas(self.canvas_frame, width=800, height=600, bg="white")
+        self.canvas.pack(expand=True, fill=tk.BOTH)
         
         # Create menu bar
         self.menu_bar = tk.Menu(root)
@@ -31,70 +53,111 @@ class DrawingApp:
         # File menu
         self.file_menu = tk.Menu(self.menu_bar, tearoff=0)
         self.menu_bar.add_cascade(label="File", menu=self.file_menu)
-        self.file_menu.add_command(label="New", command=self.clear_canvas)
-        self.file_menu.add_command(label="Save", command=self.save_drawing)
-        self.file_menu.add_command(label="Open", command=self.open_drawing)
+        self.file_menu.add_command(label="New", command=self.clear_canvas, accelerator="Ctrl+N")
+        self.file_menu.add_command(label="Save", command=self.save_drawing, accelerator="Ctrl+S")
+        self.file_menu.add_command(label="Open", command=self.open_drawing, accelerator="Ctrl+O")
         self.file_menu.add_separator()
-        self.file_menu.add_command(label="Exit", command=root.quit)
+        self.file_menu.add_command(label="Exit", command=root.quit, accelerator="Alt+F4")
         
         # Edit menu
         self.edit_menu = tk.Menu(self.menu_bar, tearoff=0)
         self.menu_bar.add_cascade(label="Edit", menu=self.edit_menu)
-        self.edit_menu.add_command(label="Undo", command=self.undo)
-        self.edit_menu.add_command(label="Redo", command=self.redo)
+        self.edit_menu.add_command(label="Undo", command=self.undo, accelerator="Ctrl+Z")
+        self.edit_menu.add_command(label="Redo", command=self.redo, accelerator="Ctrl+Y")
         
-        # Create toolbar
-        self.toolbar = tk.Frame(root)
-        self.toolbar.pack(side=tk.TOP, fill=tk.X)
+        # Create toolbar with sections
+        self.toolbar = ttk.Frame(self.main_frame)
+        self.toolbar.pack(side=tk.TOP, fill=tk.X, pady=(0, 5))
+        
+        # Separator function
+        def add_separator():
+            separator = ttk.Separator(self.toolbar, orient='vertical')
+            separator.pack(side=tk.LEFT, padx=10, pady=5, fill='y')
+        
+        # Tools section
+        self.tools_frame = ttk.LabelFrame(self.toolbar, text="Tools")
+        self.tools_frame.pack(side=tk.LEFT, padx=5, pady=5, fill='y')
+        
+        # Button dict to keep track of tool buttons
+        self.tool_buttons = {}
         
         # Shape buttons
-        self.line_btn = tk.Button(self.toolbar, text="Line", command=lambda: self.set_shape("line"))
-        self.line_btn.pack(side=tk.LEFT, padx=5, pady=5)
+        self.tool_buttons["line"] = ttk.Button(self.tools_frame, text="Line", width=10, 
+                                            command=lambda: self.set_shape("line"), style='Tool.TButton')
+        self.tool_buttons["line"].pack(side=tk.LEFT, padx=2, pady=2)
         
-        self.rectangle_btn = tk.Button(self.toolbar, text="Rectangle", command=lambda: self.set_shape("rectangle"))
-        self.rectangle_btn.pack(side=tk.LEFT, padx=5, pady=5)
+        self.tool_buttons["rectangle"] = ttk.Button(self.tools_frame, text="Rectangle", width=10,
+                                                 command=lambda: self.set_shape("rectangle"), style='Tool.TButton')
+        self.tool_buttons["rectangle"].pack(side=tk.LEFT, padx=2, pady=2)
         
-        self.oval_btn = tk.Button(self.toolbar, text="Oval", command=lambda: self.set_shape("oval"))
-        self.oval_btn.pack(side=tk.LEFT, padx=5, pady=5)
+        self.tool_buttons["oval"] = ttk.Button(self.tools_frame, text="Oval", width=10,
+                                            command=lambda: self.set_shape("oval"), style='Tool.TButton')
+        self.tool_buttons["oval"].pack(side=tk.LEFT, padx=2, pady=2)
         
-        self.circle_btn = tk.Button(self.toolbar, text="Circle", command=lambda: self.set_shape("circle"))
-        self.circle_btn.pack(side=tk.LEFT, padx=5, pady=5)
+        self.tool_buttons["circle"] = ttk.Button(self.tools_frame, text="Circle", width=10,
+                                              command=lambda: self.set_shape("circle"), style='Tool.TButton')
+        self.tool_buttons["circle"].pack(side=tk.LEFT, padx=2, pady=2)
         
-        self.polygon_btn = tk.Button(self.toolbar, text="Polygon", command=lambda: self.set_shape("polygon"))
-        self.polygon_btn.pack(side=tk.LEFT, padx=5, pady=5)
+        self.tool_buttons["polygon"] = ttk.Button(self.tools_frame, text="Polygon", width=10,
+                                               command=lambda: self.set_shape("polygon"), style='Tool.TButton')
+        self.tool_buttons["polygon"].pack(side=tk.LEFT, padx=2, pady=2)
         
-        self.text_btn = tk.Button(self.toolbar, text="Text", command=lambda: self.set_shape("text"))
-        self.text_btn.pack(side=tk.LEFT, padx=5, pady=5)
+        self.tool_buttons["text"] = ttk.Button(self.tools_frame, text="Text", width=10,
+                                            command=lambda: self.set_shape("text"), style='Tool.TButton')
+        self.tool_buttons["text"].pack(side=tk.LEFT, padx=2, pady=2)
         
-        # Color buttons
-        self.color_btn = tk.Button(self.toolbar, text="Outline Color", command=self.choose_color)
-        self.color_btn.pack(side=tk.LEFT, padx=5, pady=5)
+        # Highlight the default tool
+        self.tool_buttons["line"].state(['pressed'])
         
-        self.fill_btn = tk.Button(self.toolbar, text="Fill Color", command=self.choose_fill_color)
-        self.fill_btn.pack(side=tk.LEFT, padx=5, pady=5)
+        add_separator()
         
-        # Line width
-        self.width_label = tk.Label(self.toolbar, text="Width:")
-        self.width_label.pack(side=tk.LEFT, padx=5, pady=5)
+        # Color section
+        self.color_frame = ttk.LabelFrame(self.toolbar, text="Colors")
+        self.color_frame.pack(side=tk.LEFT, padx=5, pady=5, fill='y')
+        
+        # Create color preview frames
+        self.outline_preview = tk.Frame(self.color_frame, width=20, height=20, bg=self.current_color, bd=1, relief='sunken')
+        self.outline_preview.pack(side=tk.LEFT, padx=(5, 2), pady=5)
+        
+        self.color_btn = ttk.Button(self.color_frame, text="Outline", command=self.choose_color)
+        self.color_btn.pack(side=tk.LEFT, padx=2, pady=5)
+        
+        self.fill_preview = tk.Frame(self.color_frame, width=20, height=20, bg=self.fill_color, bd=1, relief='sunken')
+        self.fill_preview.pack(side=tk.LEFT, padx=(10, 2), pady=5)
+        
+        self.fill_btn = ttk.Button(self.color_frame, text="Fill", command=self.choose_fill_color)
+        self.fill_btn.pack(side=tk.LEFT, padx=2, pady=5)
+        
+        add_separator()
+        
+        # Line width section
+        self.width_frame = ttk.LabelFrame(self.toolbar, text="Line Width")
+        self.width_frame.pack(side=tk.LEFT, padx=5, pady=5, fill='y')
         
         self.width_var = tk.StringVar(value="2")
-        self.width_spinbox = tk.Spinbox(self.toolbar, from_=1, to=10, width=3, textvariable=self.width_var, 
+        self.width_spinbox = ttk.Spinbox(self.width_frame, from_=1, to=10, width=3, textvariable=self.width_var, 
                                         command=self.update_line_width)
         self.width_spinbox.pack(side=tk.LEFT, padx=5, pady=5)
         
-        # Clear and delete buttons
-        self.clear_btn = tk.Button(self.toolbar, text="Clear All", command=self.clear_canvas)
-        self.clear_btn.pack(side=tk.LEFT, padx=5, pady=5)
+        add_separator()
         
-        self.delete_btn = tk.Button(self.toolbar, text="Delete Selected", command=self.delete_selected)
-        self.delete_btn.pack(side=tk.LEFT, padx=5, pady=5)
+        # Actions section
+        self.actions_frame = ttk.LabelFrame(self.toolbar, text="Actions")
+        self.actions_frame.pack(side=tk.LEFT, padx=5, pady=5, fill='y')
         
         # Undo/Redo buttons
-        self.undo_btn = tk.Button(self.toolbar, text="Undo", command=self.undo)
-        self.undo_btn.pack(side=tk.LEFT, padx=5, pady=5)
+        self.undo_btn = ttk.Button(self.actions_frame, text="Undo", command=self.undo)
+        self.undo_btn.pack(side=tk.LEFT, padx=2, pady=5)
         
-        self.redo_btn = tk.Button(self.toolbar, text="Redo", command=self.redo)
-        self.redo_btn.pack(side=tk.LEFT, padx=5, pady=5)
+        self.redo_btn = ttk.Button(self.actions_frame, text="Redo", command=self.redo)
+        self.redo_btn.pack(side=tk.LEFT, padx=2, pady=5)
+        
+        # Clear and delete buttons
+        self.clear_btn = ttk.Button(self.actions_frame, text="Clear All", command=self.clear_canvas)
+        self.clear_btn.pack(side=tk.LEFT, padx=2, pady=5)
+        
+        self.delete_btn = ttk.Button(self.actions_frame, text="Delete Item", command=self.delete_selected)
+        self.delete_btn.pack(side=tk.LEFT, padx=2, pady=5)
         
         # Bind mouse events
         self.canvas.bind("<ButtonPress-1>", self.on_press)
@@ -106,19 +169,50 @@ class DrawingApp:
         self.root.bind("<Control-z>", lambda event: self.undo())
         self.root.bind("<Control-y>", lambda event: self.redo())
         self.root.bind("<Delete>", lambda event: self.delete_selected())
+        self.root.bind("<Control-n>", lambda event: self.clear_canvas())
+        self.root.bind("<Control-s>", lambda event: self.save_drawing())
+        self.root.bind("<Control-o>", lambda event: self.open_drawing())
         
         # Status bar
-        self.status_bar = tk.Label(root, text="Ready", bd=1, relief=tk.SUNKEN, anchor=tk.W)
-        self.status_bar.pack(side=tk.BOTTOM, fill=tk.X)
+        self.status_frame = ttk.Frame(self.main_frame)
+        self.status_frame.pack(side=tk.BOTTOM, fill=tk.X)
+        
+        self.status_bar = ttk.Label(self.status_frame, text="Ready", relief=tk.SUNKEN, anchor=tk.W)
+        self.status_bar.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        
+        # Coordinates display
+        self.coords_label = ttk.Label(self.status_frame, text="", relief=tk.SUNKEN, width=15)
+        self.coords_label.pack(side=tk.RIGHT)
+        
+        # Update coordinates on mouse movement
+        self.canvas.bind("<Motion>", self.update_coords)
         
         # Temporary shape for preview
         self.temp_shape = None
         self.selected_item = None
         self.polygon_points = []
         
+        # Update initial UI state
+        self.update_tool_buttons()
+    
+    def update_coords(self, event):
+        """Update coordinates display in status bar"""
+        self.coords_label.config(text=f"X: {event.x}, Y: {event.y}")
+        
+    def update_tool_buttons(self):
+        """Update tool button styling based on selected shape"""
+        for shape, button in self.tool_buttons.items():
+            if shape == self.current_shape:
+                button.state(['pressed'])
+            else:
+                button.state(['!pressed'])
+    
     def set_shape(self, shape):
         self.current_shape = shape
         self.status_bar.config(text=f"Selected: {shape.capitalize()}")
+        
+        # Update button styling
+        self.update_tool_buttons()
         
         # Reset polygon points if changing from polygon
         if shape != "polygon":
@@ -128,11 +222,13 @@ class DrawingApp:
         color = colorchooser.askcolor(initialcolor=self.current_color)
         if color[1]:
             self.current_color = color[1]
+            self.outline_preview.config(bg=self.current_color)
     
     def choose_fill_color(self):
         color = colorchooser.askcolor(initialcolor=self.fill_color if self.fill_color else "#ffffff")
         if color[1]:
             self.fill_color = color[1]
+            self.fill_preview.config(bg=self.fill_color)
     
     def update_line_width(self):
         try:
