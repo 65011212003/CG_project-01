@@ -102,10 +102,6 @@ class DrawingApp:
                                                command=lambda: self.set_shape("polygon"), style='Tool.TButton')
         self.tool_buttons["polygon"].pack(side=tk.LEFT, padx=2, pady=2)
         
-        self.tool_buttons["text"] = ttk.Button(self.tools_frame, text="Text", width=10,
-                                            command=lambda: self.set_shape("text"), style='Tool.TButton')
-        self.tool_buttons["text"].pack(side=tk.LEFT, padx=2, pady=2)
-        
         # Highlight the default tool
         self.tool_buttons["line"].state(['pressed'])
         
@@ -260,16 +256,12 @@ class DrawingApp:
             coords = self.canvas.coords(item_id)
             options = {}
             
-            if item_type in ["line", "oval", "rectangle", "polygon", "text"]:
+            if item_type in ["line", "oval", "rectangle", "polygon"]:  # Remove "text"
                 options["fill"] = self.canvas.itemcget(item_id, "fill")
                 options["width"] = self.canvas.itemcget(item_id, "width")
                 
                 if item_type != "line":
                     options["outline"] = self.canvas.itemcget(item_id, "outline")
-                
-                if item_type == "text":
-                    options["text"] = self.canvas.itemcget(item_id, "text")
-                    options["font"] = self.canvas.itemcget(item_id, "font")
             
             state.append((item_type, coords, options))
         
@@ -287,16 +279,12 @@ class DrawingApp:
             coords = self.canvas.coords(item_id)
             options = {}
             
-            if item_type in ["line", "oval", "rectangle", "polygon", "text"]:
+            if item_type in ["line", "oval", "rectangle", "polygon"]:  # Remove "text"
                 options["fill"] = self.canvas.itemcget(item_id, "fill")
                 options["width"] = self.canvas.itemcget(item_id, "width")
                 
                 if item_type != "line":
                     options["outline"] = self.canvas.itemcget(item_id, "outline")
-                
-                if item_type == "text":
-                    options["text"] = self.canvas.itemcget(item_id, "text")
-                    options["font"] = self.canvas.itemcget(item_id, "font")
             
             current_state.append((item_type, coords, options))
         
@@ -319,9 +307,6 @@ class DrawingApp:
             elif item_type == "polygon":
                 item = self.canvas.create_polygon(coords, outline=options["outline"], 
                                                 fill=options["fill"], width=options["width"])
-            elif item_type == "text":
-                item = self.canvas.create_text(coords, text=options["text"], fill=options["fill"], 
-                                             font=options["font"])
             
             self.drawn_items.append(item)
     
@@ -336,16 +321,12 @@ class DrawingApp:
             coords = self.canvas.coords(item_id)
             options = {}
             
-            if item_type in ["line", "oval", "rectangle", "polygon", "text"]:
+            if item_type in ["line", "oval", "rectangle", "polygon"]:  # Remove "text"
                 options["fill"] = self.canvas.itemcget(item_id, "fill")
                 options["width"] = self.canvas.itemcget(item_id, "width")
                 
                 if item_type != "line":
                     options["outline"] = self.canvas.itemcget(item_id, "outline")
-                
-                if item_type == "text":
-                    options["text"] = self.canvas.itemcget(item_id, "text")
-                    options["font"] = self.canvas.itemcget(item_id, "font")
             
             current_state.append((item_type, coords, options))
         
@@ -368,9 +349,6 @@ class DrawingApp:
             elif item_type == "polygon":
                 item = self.canvas.create_polygon(coords, outline=options["outline"], 
                                                 fill=options["fill"], width=options["width"])
-            elif item_type == "text":
-                item = self.canvas.create_text(coords, text=options["text"], fill=options["fill"], 
-                                             font=options["font"])
             
             self.drawn_items.append(item)
     
@@ -386,16 +364,12 @@ class DrawingApp:
             coords = self.canvas.coords(item_id)
             options = {}
             
-            if item_type in ["line", "oval", "rectangle", "polygon", "text"]:
+            if item_type in ["line", "oval", "rectangle", "polygon"]:  # Remove "text"
                 options["fill"] = self.canvas.itemcget(item_id, "fill")
                 options["width"] = self.canvas.itemcget(item_id, "width")
                 
                 if item_type != "line":
                     options["outline"] = self.canvas.itemcget(item_id, "outline")
-                
-                if item_type == "text":
-                    options["text"] = self.canvas.itemcget(item_id, "text")
-                    options["font"] = self.canvas.itemcget(item_id, "font")
             
             drawing_data.append({"type": item_type, "coords": coords, "options": options})
         
@@ -433,9 +407,6 @@ class DrawingApp:
                 elif item_type == "polygon":
                     item = self.canvas.create_polygon(coords, outline=options["outline"], 
                                                     fill=options["fill"], width=options["width"])
-                elif item_type == "text":
-                    item = self.canvas.create_text(coords, text=options["text"], fill=options["fill"], 
-                                                 font=options["font"])
                 
                 self.drawn_items.append(item)
             
@@ -450,7 +421,7 @@ class DrawingApp:
         
         # Check if clicking on an existing item
         clicked_items = self.canvas.find_withtag("current")
-        if clicked_items and self.current_shape not in ["polygon", "text"]:
+        if clicked_items and self.current_shape != "polygon":  # Remove text check
             self.selected_item = clicked_items[0]
             # Highlight the selected item
             self.canvas.itemconfig(self.selected_item, width=self.line_width+2)
@@ -474,20 +445,13 @@ class DrawingApp:
                                             fill=self.fill_color, width=self.line_width)
             self.drawn_items.append(item)
             self.polygon_points = []  # Reset for next polygon
-        elif self.current_shape == "text":
-            text = simpledialog.askstring("Input", "Enter text:")
-            if text:
-                self.save_state()
-                item = self.canvas.create_text(event.x, event.y, text=text, fill=self.current_color, 
-                                             font=("Arial", 12))
-                self.drawn_items.append(item)
     
     def on_drag(self, event):
         if self.start_x is None or self.start_y is None:
             return
         
         # If an item is selected, move it
-        if self.selected_item and self.current_shape not in ["polygon", "text"]:
+        if self.selected_item and self.current_shape != "polygon":  # Remove text check
             # Calculate movement
             dx = event.x - self.start_x
             dy = event.y - self.start_y
@@ -496,8 +460,8 @@ class DrawingApp:
             self.start_y = event.y
             return
         
-        # Skip preview for polygon and text
-        if self.current_shape in ["polygon", "text"]:
+        # Skip preview for polygon
+        if self.current_shape == "polygon":  # Remove text check
             return
         
         # Delete previous temporary shape
@@ -534,12 +498,12 @@ class DrawingApp:
             return
         
         # If an item was being moved, save the state
-        if self.selected_item and self.current_shape not in ["polygon", "text"]:
+        if self.selected_item and self.current_shape != "polygon":  # Remove text check
             self.save_state()
             return
         
-        # Skip for polygon and text (handled by double-click)
-        if self.current_shape in ["polygon", "text"]:
+        # Skip for polygon
+        if self.current_shape == "polygon":  # Remove text check
             return
         
         # Delete temporary shape
